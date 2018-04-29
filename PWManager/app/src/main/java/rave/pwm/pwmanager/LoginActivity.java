@@ -1,9 +1,17 @@
 package rave.pwm.pwmanager;
 
+import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
+import android.app.KeyguardManager;
+import android.content.Context;
 import android.content.pm.PackageManager;
+import android.hardware.fingerprint.FingerprintManager;
+import android.os.CancellationSignal;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyPermanentlyInvalidatedException;
+import android.security.keystore.KeyProperties;
 import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
@@ -28,9 +36,24 @@ import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 
 import static android.Manifest.permission.READ_CONTACTS;
 
@@ -43,7 +66,6 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
      * Id to identity READ_CONTACTS permission request.
      */
     private static final int REQUEST_READ_CONTACTS = 0;
-
     /**
      * A dummy authentication store containing known user names and passwords.
      * TODO: remove after connecting to a real authentication system.
@@ -56,18 +78,28 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
      */
     private UserLoginTask mAuthTask = null;
 
+    //Fingerprint Authentication references
+    private static final String KEY_NAME = "example_key";
+    private FingerprintManager mFingerprintManager;
+    private KeyguardManager mKeyguardManager;
+    private KeyStore mKeyStore;
+    private KeyGenerator mKeyGenerator;
+    private Cipher cipher;
+    private FingerprintManager.CryptoObject cryptoObject;
+
     // UI references.
     private AutoCompleteTextView mUserNameView;
     private EditText mPasswordView;
     private View mProgressView;
     private View mLoginFormView;
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
         // Set up the login form.
-        mUserNameView = (AutoCompleteTextView) findViewById(R.id.email);
+        mUserNameView = (AutoCompleteTextView) findViewById(R.id.username);
         populateAutoComplete();
 
         mPasswordView = (EditText) findViewById(R.id.password);
@@ -83,6 +115,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
         });
 
         Button mEmailSignInButton = (Button) findViewById(R.id.email_sign_in_button);
+        //mEmailSignInButton.setEnabled(false);
         mEmailSignInButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -90,9 +123,127 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             }
         });
 
+
         mLoginFormView = findViewById(R.id.login_form);
         mProgressView = findViewById(R.id.login_progress);
+
+        //build fingerprint sensor
+        mKeyguardManager =
+                (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        mFingerprintManager =
+                (FingerprintManager) getSystemService(FINGERPRINT_SERVICE);
+
+        //check Security Settings
+        if (!mKeyguardManager.isKeyguardSecure()) {
+
+            Toast.makeText(this,
+                    "Lock screen security not enabled in Settings",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        if (this.checkSelfPermission(Manifest.permission.USE_FINGERPRINT) !=
+                PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this,
+                    "Fingerprint authentication permission not enabled",
+                    Toast.LENGTH_LONG).show();
+
+            return;
+        }
+
+        if (!mFingerprintManager.hasEnrolledFingerprints()) {
+
+            // This happens when no fingerprints are registered.
+            Toast.makeText(this,
+                    "Register at least one fingerprint in Settings",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        if (!mFingerprintManager.hasEnrolledFingerprints()) {
+
+            // This happens when no fingerprints are registered.
+            Toast.makeText(this,
+                    "Register at least one fingerprint in Settings",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        generateKey();
+
+        if (cipherInit()) {
+            cryptoObject = new FingerprintManager.CryptoObject(cipher);
+            FingerprintHandler helper = new FingerprintHandler(this);
+            helper.startAuth(mFingerprintManager, cryptoObject);
+        }
+
     }
+
+    //Accessing the Android Keystore and KeyGenerator
+    protected void generateKey() {
+
+        try {
+            mKeyStore = KeyStore.getInstance("AndroidKeyStore");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try {
+            mKeyGenerator = KeyGenerator.getInstance(
+                    KeyProperties.KEY_ALGORITHM_AES,
+                    "AndroidKeyStore");
+        } catch (NoSuchAlgorithmException |
+                NoSuchProviderException e) {
+            throw new RuntimeException(
+                    "Failed to get KeyGenerator instance", e);
+        }
+        try {
+            mKeyStore.load(null);
+            mKeyGenerator.init(new
+                    KeyGenParameterSpec.Builder(KEY_NAME,//used when storing the key in the Keystore container
+                    KeyProperties.PURPOSE_ENCRYPT |//configuring the key such that it can be used for both encryption and decryption
+                            KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+                    .setUserAuthenticationRequired(true)//configures the key such that the user is required to authorize every use of the key with a fingerprint authentication
+                    .setEncryptionPaddings(
+                            KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                    .build());
+            mKeyGenerator.generateKey();
+        } catch (NoSuchAlgorithmException |
+                InvalidAlgorithmParameterException
+                | CertificateException | IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    //Initializing the Cipher
+    public boolean cipherInit() {
+        try {
+            cipher = Cipher.getInstance(
+                    KeyProperties.KEY_ALGORITHM_AES + "/"
+                            + KeyProperties.BLOCK_MODE_CBC + "/"
+                            + KeyProperties.ENCRYPTION_PADDING_PKCS7);
+        } catch (NoSuchAlgorithmException |
+                NoSuchPaddingException e) {
+            throw new RuntimeException("Failed to get Cipher", e);
+        }
+
+        try {
+            mKeyStore.load(null);
+            SecretKey key = (SecretKey) mKeyStore.getKey(KEY_NAME,
+                    null);
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+            return true;
+        } catch (KeyPermanentlyInvalidatedException e) {
+            return false;
+        } catch (KeyStoreException | CertificateException
+                | UnrecoverableKeyException | IOException
+                | NoSuchAlgorithmException | InvalidKeyException e) {
+            throw new RuntimeException("Failed to init Cipher", e);
+        }
+    }
+
+
 
     private void populateAutoComplete() {
         if (!mayRequestContacts()) {
@@ -191,12 +342,10 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
     }
 
     private boolean isUsernameValid(String username) {
-        //TODO: Replace this with your own logic
         return !username.isEmpty();
     }
 
     private boolean isPasswordValid(String password) {
-        //TODO: Replace this with your own logic
         return password.length() > 4;
     }
 
@@ -272,9 +421,10 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
     private void addUserNamesToAutoComplete(List<String> usernameCollection) {
         //Create adapter to tell the AutoCompleteTextView what to show in its dropdown list.
-        ArrayAdapter<String> adapter =
-                new ArrayAdapter<>(LoginActivity.this,
-                        android.R.layout.simple_dropdown_item_1line, usernameCollection);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                LoginActivity.this,
+                android.R.layout.simple_dropdown_item_1line,
+                usernameCollection);
 
         mUserNameView.setAdapter(adapter);
     }
@@ -324,6 +474,8 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             }
 
             // TODO: register the new account here.
+            // TODO: start a new activity
+
             return true;
         }
 
@@ -344,6 +496,59 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
         protected void onCancelled() {
             mAuthTask = null;
             showProgress(false);
+        }
+    }
+
+    public class FingerprintHandler extends FingerprintManager.AuthenticationCallback {
+
+        private CancellationSignal cancellationSignal;
+        private Context appContext;
+
+        public FingerprintHandler(Context context) {
+            appContext = context;
+        }
+
+        public void startAuth(FingerprintManager manager,
+                              FingerprintManager.CryptoObject cryptoObject) {
+
+            cancellationSignal = new CancellationSignal();
+
+            if (appContext.checkSelfPermission(Manifest.permission.USE_FINGERPRINT) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+            manager.authenticate(cryptoObject, cancellationSignal, 0, this, null);
+        }
+
+        @Override
+        public void onAuthenticationError(int errMsgId,
+                                          CharSequence errString) {
+            Toast.makeText(appContext,
+                    "Authentication error\n" + errString,
+                    Toast.LENGTH_LONG).show();
+        }
+
+        @Override
+        public void onAuthenticationHelp(int helpMsgId,
+                                         CharSequence helpString) {
+            Toast.makeText(appContext,
+                    "Authentication help\n" + helpString,
+                    Toast.LENGTH_LONG).show();
+        }
+
+        @Override
+        public void onAuthenticationFailed() {
+            Toast.makeText(appContext,
+                    "Authentication failed.",
+                    Toast.LENGTH_LONG).show();
+        }
+
+        @Override
+        public void onAuthenticationSucceeded(
+                FingerprintManager.AuthenticationResult result) {
+
+            Toast.makeText(appContext,
+                    "Authentication succeeded.",
+                    Toast.LENGTH_LONG).show();
         }
     }
 }
