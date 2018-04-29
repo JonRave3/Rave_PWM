@@ -4,8 +4,10 @@ import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
+import android.app.Activity;
 import android.app.KeyguardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.fingerprint.FingerprintManager;
 import android.os.CancellationSignal;
@@ -475,7 +477,6 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
             // TODO: register the new account here.
             // TODO: start a new activity
-
             return true;
         }
 

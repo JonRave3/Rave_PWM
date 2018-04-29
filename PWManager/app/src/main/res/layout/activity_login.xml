@@ -41,7 +41,7 @@
                     android:id="@+id/username"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="@string/prompt_login_id"
+                    android:hint="@string/hint_login_id"
                     android:inputType="textEmailAddress"
                     android:maxLines="1"
                     android:singleLine="true" />
@@ -56,7 +56,7 @@
                     android:id="@+id/password"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="@string/prompt_password"
+                    android:hint="@string/hint_password"
                     android:imeActionId="6"
                     android:imeActionLabel="@string/action_sign_in_short"
                     android:imeOptions="actionUnspecified"
@@ -79,7 +79,7 @@
             <ImageView
                 android:id="@+id/fingerprint_imgView"
                 android:layout_width="match_parent"
-                android:layout_height="100dp"
+                android:layout_height="75dp"
                 android:layout_gravity="center"
                 android:padding="10px"
                 app:srcCompat="@drawable/android_studio_2_fingerprint_icon" />
@@ -94,7 +94,4 @@
 
         </LinearLayout>
     </ScrollView>
-
-
-
 </LinearLayout>
