@@ -2,6 +2,7 @@
     <string name="app_name">PWManager</string>
 
     <!-- Strings related to login -->
+    <string name="app_guid_token">e97fc952-22f4-4109-9d8e-31714e56b3aa</string>
     <string name="title_login_activity">Login</string>
     <string name="hint_login_id">Login ID</string>
     <string name="hint_password">Password</string>

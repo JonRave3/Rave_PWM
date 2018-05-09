@@ -8,9 +8,11 @@ import android.app.Activity;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.hardware.fingerprint.FingerprintManager;
 import android.os.CancellationSignal;
+import android.os.Handler;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyPermanentlyInvalidatedException;
 import android.security.keystore.KeyProperties;
@@ -29,6 +31,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.ContactsContract;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -50,6 +53,7 @@ import java.security.NoSuchProviderException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import javax.crypto.Cipher;
@@ -79,7 +83,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
      * Keep track of the login task to ensure we can cancel it if requested.
      */
     private UserLoginTask mAuthTask = null;
-
+    private LoginActivity loginActivity;
     //Fingerprint Authentication references
     private static final String KEY_NAME = "example_key";
     private FingerprintManager mFingerprintManager;
@@ -95,16 +99,31 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
     private View mProgressView;
     private View mLoginFormView;
 
+    private SharedPreferences sp;
+    private SharedPreferences.Editor spe;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        loginActivity = this;
+        //1.) check if token exists and not expired
+        sp = getSharedPreferences(getString(R.string.app_guid_token), Context.MODE_PRIVATE);
+        spe = sp.edit();
+        boolean loggedIn = sp.getBoolean("isLoggedIn", false);
+        if(loggedIn){
+            //1.a) prompt to login
+            Intent main = new Intent(this.getApplicationContext(), MainActivity.class);
+            startActivity(main);
+            this.finish();
+        }
+        //2. continue as normal
+
         setContentView(R.layout.activity_login);
         // Set up the login form.
-        mUserNameView = (AutoCompleteTextView) findViewById(R.id.username);
+        mUserNameView = findViewById(R.id.username);
         populateAutoComplete();
 
-        mPasswordView = (EditText) findViewById(R.id.password);
+        mPasswordView = findViewById(R.id.password);
         mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
             public boolean onEditorAction(TextView textView, int id, KeyEvent keyEvent) {
@@ -175,21 +194,38 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
         if (cipherInit()) {
             cryptoObject = new FingerprintManager.CryptoObject(cipher);
-            FingerprintHandler helper = new FingerprintHandler(this);
-            helper.startAuth(mFingerprintManager, cryptoObject);
+            /* findViewById(R.id.fingerprint_imgBtn).setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Log.d("fp_btn_click","FingerPrint Button Clicked!");
+                    Context context = getApplicationContext();
+                    FingerprintHandler fph = new FingerprintHandler(context, LoginActivity.this);
+                    fph.startAuth(mFingerprintManager, cryptoObject);
+                }
+            });
+            */
+            FingerprintHandler fph = new FingerprintHandler(this, LoginActivity.this);
+            fph.startAuth(mFingerprintManager, cryptoObject);
         }
 
     }
 
+    @Override
+    protected void onDestroy(){
+        spe.putBoolean("isLoggedIn", false);
+        spe.apply();
+        super.onDestroy();
+    }
     //Accessing the Android Keystore and KeyGenerator
     protected void generateKey() {
 
+        //create instance of Android KeyStore
         try {
             mKeyStore = KeyStore.getInstance("AndroidKeyStore");
         } catch (Exception e) {
             e.printStackTrace();
         }
-
+        //Build a Key-Generator
         try {
             mKeyGenerator = KeyGenerator.getInstance(
                     KeyProperties.KEY_ALGORITHM_AES,
@@ -199,6 +235,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             throw new RuntimeException(
                     "Failed to get KeyGenerator instance", e);
         }
+        //initialize and generate a key
         try {
             mKeyStore.load(null);
             mKeyGenerator.init(new
@@ -220,6 +257,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
     //Initializing the Cipher
     public boolean cipherInit() {
+
         try {
             cipher = Cipher.getInstance(
                     KeyProperties.KEY_ALGORITHM_AES + "/"
@@ -297,6 +335,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
      * errors are presented and no actual login attempt is made.
      */
     private void attemptLogin() {
+
         if (mAuthTask != null) {
             return;
         }
@@ -476,7 +515,6 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             }
 
             // TODO: register the new account here.
-            // TODO: start a new activity
             return true;
         }
 
@@ -504,33 +542,38 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
         private CancellationSignal cancellationSignal;
         private Context appContext;
+        private Activity activity;
 
-        public FingerprintHandler(Context context) {
+        public FingerprintHandler(Context context, Activity act) {
             appContext = context;
+            activity = act;
         }
 
-        public void startAuth(FingerprintManager manager,
-                              FingerprintManager.CryptoObject cryptoObject) {
-
+        public void startAuth(FingerprintManager manager, FingerprintManager.CryptoObject cryptoObject) {
+            Log.i("info", "Creating cancellation signal");
             cancellationSignal = new CancellationSignal();
 
             if (appContext.checkSelfPermission(Manifest.permission.USE_FINGERPRINT) != PackageManager.PERMISSION_GRANTED) {
+                Log.e("error", "insufficient privilages; authorization ending...");
                 return;
             }
+            Log.i("info", "Attempting to authenticate fingerprint...");
+            Handler handler = new Handler();
             manager.authenticate(cryptoObject, cancellationSignal, 0, this, null);
         }
 
         @Override
-        public void onAuthenticationError(int errMsgId,
-                                          CharSequence errString) {
+        public void onAuthenticationError(int errMsgId, CharSequence errString) {
+            Log.e("AuthenticationError", "Authentication error: " + errMsgId + " - " + errString);
             Toast.makeText(appContext,
                     "Authentication error\n" + errString,
                     Toast.LENGTH_LONG).show();
+            spe.putBoolean("isLoggedIn", false);
+            spe.apply();
         }
 
         @Override
-        public void onAuthenticationHelp(int helpMsgId,
-                                         CharSequence helpString) {
+        public void onAuthenticationHelp(int helpMsgId, CharSequence helpString) {
             Toast.makeText(appContext,
                     "Authentication help\n" + helpString,
                     Toast.LENGTH_LONG).show();
@@ -538,18 +581,22 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
         @Override
         public void onAuthenticationFailed() {
+            Log.e("AuthenticationFailed", "Authentication Failed");
             Toast.makeText(appContext,
                     "Authentication failed.",
                     Toast.LENGTH_LONG).show();
+            spe.putBoolean("isLoggedIn", false);
+            spe.apply();
         }
 
         @Override
-        public void onAuthenticationSucceeded(
-                FingerprintManager.AuthenticationResult result) {
-
-            Toast.makeText(appContext,
-                    "Authentication succeeded.",
-                    Toast.LENGTH_LONG).show();
+        public void onAuthenticationSucceeded(FingerprintManager.AuthenticationResult result) {
+            Log.i("AuthenticationSuccess", "Authentication Succeeded");
+            spe.putBoolean("isLoggedIn", true);
+            spe.apply();
+            //start a timer object to countdown at which point the user is logged out of the session
+            startActivity(new Intent(getApplicationContext(), MainActivity.class));
+            activity.finish();
         }
     }
 }

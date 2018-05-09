@@ -2,7 +2,7 @@ package rave.pwm.pwmanager;
 
 import android.content.Context;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
+import android.app.Fragment;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -10,10 +10,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import rave.pwm.pwmanager.dummy.DummyContent;
-import rave.pwm.pwmanager.dummy.DummyContent.DummyItem;
-
-import java.util.List;
+import rave.pwm.pwmanager.Accounts;
+import rave.pwm.pwmanager.Accounts.AccountRecord;
 
 /**
  * A fragment representing a list of Items.
@@ -28,6 +26,7 @@ public class AccountListFragment extends Fragment {
     // TODO: Customize parameters
     private int mColumnCount = 1;
     private OnListFragmentInteractionListener mListener;
+    private AccountRecyclerViewAdapter mAccountRVAdapter;
 
     /**
      * Mandatory empty constructor for the fragment manager to instantiate the
@@ -47,6 +46,16 @@ public class AccountListFragment extends Fragment {
     }
 
     @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        if (context instanceof OnListFragmentInteractionListener) {
+            mListener = (OnListFragmentInteractionListener) context;
+        } else {
+            throw new RuntimeException(context.toString()
+                    + " must implement OnListFragmentInteractionListener");
+        }
+    }
+    @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
@@ -61,29 +70,11 @@ public class AccountListFragment extends Fragment {
         View view = inflater.inflate(R.layout.fragment_item_list, container, false);
 
         // Set the adapter
-        if (view instanceof RecyclerView) {
-            Context context = view.getContext();
-            RecyclerView recyclerView = (RecyclerView) view;
-            if (mColumnCount <= 1) {
-                recyclerView.setLayoutManager(new LinearLayoutManager(context));
-            } else {
-                recyclerView.setLayoutManager(new GridLayoutManager(context, mColumnCount));
-            }
-            recyclerView.setAdapter(new AccountRecyclerViewAdapter(DummyContent.ITEMS, mListener));
-        }
+        RecyclerView recyclerView = (RecyclerView) view;
+        mAccountRVAdapter = new AccountRecyclerViewAdapter(Accounts.testData(), mListener);
+        recyclerView.setAdapter(mAccountRVAdapter);
+        recyclerView.setHasFixedSize(true);
         return view;
-    }
-
-
-    @Override
-    public void onAttach(Context context) {
-        super.onAttach(context);
-        if (context instanceof OnListFragmentInteractionListener) {
-            mListener = (OnListFragmentInteractionListener) context;
-        } else {
-            throw new RuntimeException(context.toString()
-                    + " must implement OnListFragmentInteractionListener");
-        }
     }
 
     @Override
@@ -104,6 +95,6 @@ public class AccountListFragment extends Fragment {
      */
     public interface OnListFragmentInteractionListener {
         // TODO: Update argument type and name
-        void onListFragmentInteraction(DummyItem item);
+        void onListFragmentInteraction(AccountRecord item);
     }
 }

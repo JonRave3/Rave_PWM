@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -66,31 +67,32 @@
 
             </android.support.design.widget.TextInputLayout>
 
-            <Button
-                android:id="@+id/email_sign_in_button"
-                style="?android:textAppearanceSmall"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="@string/action_sign_in_short"
-                android:textStyle="bold" />
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/email_sign_in_button"
+                    style="?android:textAppearanceSmall"
+                    android:layout_width="189dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="4"
+                    android:gravity="center"
+                    android:text="@string/action_sign_in_short"
+                    android:textStyle="bold" />
 
 
-            <ImageView
-                android:id="@+id/fingerprint_imgView"
-                android:layout_width="match_parent"
-                android:layout_height="75dp"
-                android:layout_gravity="center"
-                android:padding="10px"
-                app:srcCompat="@drawable/android_studio_2_fingerprint_icon" />
+                <ImageButton
+                    android:id="@+id/fingerprint_imgBtn"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_gravity="right|center"
+                    android:layout_marginLeft="6dp"
+                    android:layout_weight="1"
+                    app:srcCompat="@drawable/android_studio_2_fingerprint_icon" />
+            </LinearLayout>
 
-            <TextView
-                android:id="@+id/fingerprint_lbl"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/prompt_fingerprint_sensor"
-                android:textStyle="bold"
-                android:textAlignment="center"/>
 
         </LinearLayout>
     </ScrollView>

@@ -1,5 +1,6 @@
 package rave.pwm.pwmanager;
 
+import android.support.v7.widget.CardView;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -7,21 +8,17 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import rave.pwm.pwmanager.AccountListFragment.OnListFragmentInteractionListener;
-import rave.pwm.pwmanager.dummy.DummyContent.DummyItem;
+import rave.pwm.pwmanager.Accounts.AccountRecord;
 
 import java.util.List;
 
-/**
- * {@link RecyclerView.Adapter} that can display a {@link DummyItem} and makes a call to the
- * specified {@link OnListFragmentInteractionListener}.
- * TODO: Replace the implementation with code for your data type.
- */
+
 public class AccountRecyclerViewAdapter extends RecyclerView.Adapter<AccountRecyclerViewAdapter.ViewHolder> {
 
-    private final List<DummyItem> mValues;
+    private final List<AccountRecord> mValues;
     private final OnListFragmentInteractionListener mListener;
 
-    public AccountRecyclerViewAdapter(List<DummyItem> items, OnListFragmentInteractionListener listener) {
+    public AccountRecyclerViewAdapter(List<AccountRecord> items, OnListFragmentInteractionListener listener) {
         mValues = items;
         mListener = listener;
     }
@@ -36,17 +33,22 @@ public class AccountRecyclerViewAdapter extends RecyclerView.Adapter<AccountRecy
     @Override
     public void onBindViewHolder(final ViewHolder holder, int position) {
         holder.mItem = mValues.get(position);
-        holder.mIdView.setText(mValues.get(position).id);
-        holder.mContentView.setText(mValues.get(position).content);
+        //set the values of the view
+        holder.mNameView.setText(mValues.get(position).getName());
+        holder.mUserNameView.setText(mValues.get(position).getUserName());
+        holder.mPasswordView.setText(mValues.get(position).getPassword());
+        holder.mOptionsView.setText(mValues.get(position).getOptions());
 
-        holder.mView.setOnClickListener(new View.OnClickListener() {
+        holder.mView.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
-            public void onClick(View v) {
+            public boolean onLongClick(View v) {
                 if (null != mListener) {
                     // Notify the active callbacks interface (the activity, if the
                     // fragment is attached to one) that an item has been selected.
                     mListener.onListFragmentInteraction(holder.mItem);
+                    return true;
                 }
+                return false;
             }
         });
     }
@@ -56,22 +58,27 @@ public class AccountRecyclerViewAdapter extends RecyclerView.Adapter<AccountRecy
         return mValues.size();
     }
 
+    @Override
+    public void onAttachedToRecyclerView(RecyclerView recyclerView) {
+        super.onAttachedToRecyclerView(recyclerView);
+    }
+
     public class ViewHolder extends RecyclerView.ViewHolder {
-        public final View mView;
-        public final TextView mIdView;
-        public final TextView mContentView;
-        public DummyItem mItem;
+        public final CardView mView;
+        public final TextView mNameView;
+        public final TextView mUserNameView;
+        public final TextView mPasswordView;
+        public final TextView mOptionsView;
+
+        public AccountRecord mItem;
 
         public ViewHolder(View view) {
             super(view);
-            mView = view;
-            mIdView = (TextView) view.findViewById(R.id.item_number);
-            mContentView = (TextView) view.findViewById(R.id.content);
-        }
-
-        @Override
-        public String toString() {
-            return super.toString() + " '" + mContentView.getText() + "'";
+            mView = (CardView) view;
+            mNameView = mView.findViewById(R.id.account_item_name);
+            mUserNameView = mView.findViewById(R.id.account_item_login_id);
+            mPasswordView = mView.findViewById(R.id.account_item_password);
+            mOptionsView = mView.findViewById(R.id.account_item_options);
         }
     }
 }
